@@ -1,0 +1,9 @@
+POSA_VBCS-1046_Rproj
+benchmarks
+logs
+raw_data
+results
+rnaseq_workflow.e
+rnaseq_workflow.o
+.Rproj.user/
+.snakemake
