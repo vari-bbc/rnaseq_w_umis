@@ -1,0 +1,184 @@
+import pandas as pd
+import os
+from shutil import which
+from snakemake.utils import validate, min_version
+from pathlib import Path
+##### set minimum snakemake version #####
+min_version("7.25.0")
+
+configfile: "config/config.yaml"
+
+samples = pd.read_table("config/units.tsv")
+
+check_dup_cols = ['sample','fq1','fq2']
+dup_values = [sum(samples[x].duplicated()) for x in check_dup_cols]
+for i in range(len(check_dup_cols)):
+    if dup_values[i] != 0:
+        raise ValueError("Duplicated value in the " + check_dup_cols[i] + " column in the samplesheet.")
+
+#duplicate_values = sum(samples['sample'].duplicated())
+#if duplicate_values != 0:
+#    raise ValueError("Duplicated sample name in the samplesheet.")
+
+include:
+    'rules/cogent.smk'
+include:
+    'rules/kb.smk'
+include:
+    'rules/starsolo.smk'
+include:
+    'rules/umitools.smk'
+
+rule all:
+    input:
+        expand("results/cogent_analyze/{sample}/{sample}_umi_uss_genematrix.csv", sample=pd.unique(samples['sample'])) if config['run_cogent_ap'] else [],
+        #expand("results/htseq_count/{sample}.{strandedness}.out", sample=pd.unique(samples['sample']), strandedness=['yes','no','reverse']),
+        "results/multiqc/multiqc_report.html",
+        #expand("results/salmon/{sample}/logs/salmon_quant.log", sample=pd.unique(samples['sample'])),
+        expand("results/STARsolo/{sample}.Solo.out/Gene/raw/matrix.mtx.gz", sample=pd.unique(samples['sample'])),
+        expand("results/kb_count/{sample}/{fn}", sample=pd.unique(samples['sample']), fn=['flens.txt', 'index.saved', 'matrix.ec', 'output.bus', 'run_info.json', 'transcripts.txt']),
+        expand("results/kb_count_all/{fn}", fn=['index.saved', 'matrix.ec', 'output.bus', 'run_info.json', 'transcripts.txt']),
+        expand("results/kallisto_quant_tcc_all/{type}/transcripts.txt", type=['total']),
+        #expand("results/kallisto_quant_tcc/{sample}/{type}/transcripts.txt", type=['total'],  sample=pd.unique(samples['sample'])),
+        #"results/SummarizedExperiment/sce.rds"
+
+rule multiqc:
+    input:
+        expand("results/fastqc/{sample}_R{read}_fastqc.html", sample=pd.unique(samples['sample']), read=['1','2']),
+        #expand("results/trim_galore/{sample}_R{read}_val_{read}_fastqc.html", sample=pd.unique(samples['sample']), read=["1","2"]),
+        expand("results/fastq_screen/{sample}_R{read}_screen.html", sample=pd.unique(samples['sample']), read=['1','2']),
+        expand("results/STARsolo/{sample}.Aligned.sortedByCoord.out.bam", sample=pd.unique(samples['sample'])),
+        #expand("results/salmon/{sample}/logs/salmon_quant.log", sample=pd.unique(samples['sample'])),
+    output:
+        "results/multiqc/multiqc_report.html",
+    benchmark:
+        "benchmarks/multiqc/multiqc.txt"
+    params:
+        workdir="results/multiqc/",
+        dirs=lambda wildcards, input: ' '.join(pd.unique(['/'.join(Path(x).parts[0:2]) for x in input])),
+        outfile="multiqc_report"
+    envmodules:
+        config['modules']['multiqc']
+    threads: 4
+    resources:
+        mem_gb=100,
+        log_prefix=lambda wildcards: "_".join(wildcards) if len(wildcards) > 0 else "log"
+    priority: 1
+    shell:
+        """
+        multiqc \
+        --force \
+        --outdir {params.workdir} \
+        --filename {params.outfile} \
+        {params.dirs}
+
+        """
+
+def get_orig_fastq(wildcards):
+    fastq = []
+    if wildcards.read == "R1":
+            fastq = expand("raw_data/{fq}", fq = samples[samples["sample"] == wildcards.sample]["fq1"].values)
+    elif wildcards.read == "R2":
+            fastq = expand("raw_data/{fq}", fq = samples[samples["sample"] == wildcards.sample]["fq2"].values)
+    return fastq 
+
+rule rename_fastqs:
+    """
+    Rename fastqs by biologically meaningful name. Concatenate different runs of same library.
+    """
+    input:
+        get_orig_fastq
+    output:
+        "results/renamed_fastqs/{sample}_{read}.fastq.gz"
+    benchmark:
+        "benchmarks/rename_fastqs/{sample}_{read}.txt"
+    params:
+        num_input=lambda wildcards, input: len(input),
+        input=lambda wildcards, input: ["'" + x + "'" for x in input]
+    threads: 1
+    resources:
+        mem_gb=8,
+        log_prefix=lambda wildcards: "_".join(wildcards) if len(wildcards) > 0 else "log"
+    envmodules:
+    shell:
+        """
+        if [ {params.num_input} -gt 1 ]
+        then
+            cat {params.input} > {output}
+        else
+            ln -sr {params.input} {output}
+        fi
+
+        """
+
+rule fastqc:
+    """
+    Run fastqc on raw_data/ files.
+    """
+    input:
+        "results/renamed_fastqs/{fq_pref}.fastq.gz"
+    output:
+        html="results/fastqc/{fq_pref}_fastqc.html",
+        zip="results/fastqc/{fq_pref}_fastqc.zip"
+    params:
+        outdir="results/fastqc/"
+    benchmark:
+        "benchmarks/fastqc/{fq_pref}.txt"
+    envmodules:
+        config['modules']['fastqc']
+    threads: 1
+    resources:
+        mem_gb = 32,
+        log_prefix=lambda wildcards: "_".join(wildcards) if len(wildcards) > 0 else "log"
+    shell:
+        """
+        fastqc --outdir {params.outdir} {input}
+        """
+
+rule fastq_screen:
+    """
+    Run fastq_screen to detect any contamination from other species or excessive rRNA.
+    """
+    input:
+        "results/renamed_fastqs/{fq_pref}.fastq.gz"
+    output:
+        html = "results/fastq_screen/{fq_pref}_screen.html",
+        txt = "results/fastq_screen/{fq_pref}_screen.txt",
+    params:
+    benchmark:
+        "benchmarks/fastq_screen/{fq_pref}.txt"
+    envmodules:
+        config['modules']['fastq_screen']
+    threads: 8
+    resources:
+        mem_gb = 32,
+        log_prefix=lambda wildcards: "_".join(wildcards) if len(wildcards) > 0 else "log"
+    shell:
+        """
+        fastq_screen --threads {threads} --outdir results/fastq_screen/ {input}
+        """
+
+rule SummarizedExperiment:
+    input:
+        star = expand("results/star/deduped/{samples.sample}.ReadsPerGene.out.tab", samples=samples.itertuples()),
+        salmon = expand("results/salmon/{samples.sample}/{file}", samples=samples.itertuples(), file=['lib_format_counts.json', 'quant.sf']),
+        cogent = expand("results/cogent_analyze/{samples.sample}/{samples.sample}_umi_uss_genematrix.csv", samples=samples.itertuples())
+    output:
+        se="results/SummarizedExperiment/SummarizedExperiment.rds",
+        sce="results/SummarizedExperiment/sce.rds",
+        #sizeFactors="results/SummarizedExperiment/DESeq2_sizeFactors_reciprocal.tsv"
+    benchmark:
+        "benchmarks/SummarizedExperiment/SummarizedExperiment.txt"
+    params:
+        gtf=config['ref']['annotation'],
+        orgdb=config['orgdb']
+    threads: 1
+    envmodules:
+        config['modules']['R']
+    resources:
+        mem_gb=64,
+        log_prefix=lambda wildcards: "_".join(wildcards) if len(wildcards) > 0 else "log"
+    shell:
+        """
+        Rscript --vanilla workflow/scripts/make_sce.R {params.gtf} {params.orgdb} {output.se} {output.sce} 
+        """
