@@ -93,7 +93,7 @@ rule kb_count_all:
         files=expand("results/kb_count_all/{fn}", fn=['index.saved', 'inspect.json', 'kb_info.json', 'matrix.ec', 'output.bus', 'run_info.json', 'transcripts.txt']),
         counts=expand("results/kb_count_all/counts_unfiltered/{fn}", fn=['cells_x_tcc.ambiguous.mtx', 'cells_x_tcc.barcodes.txt', 'cells_x_tcc.ec.txt', 'cells_x_tcc.mature.mtx', 'cells_x_tcc.nascent.mtx','cells_x_tcc.cell.mtx','cells_x_tcc.nucleus.mtx','cells_x_tcc.total.mtx']),
     benchmark:
-        "benchmarks/kb_count/bench.txt"
+        "benchmarks/kb_count_all/bench.txt"
     params:
         outdir=lambda wildcards, output: os.path.dirname(output[0]),
         genome_fa=config['ref']['sequence'],
