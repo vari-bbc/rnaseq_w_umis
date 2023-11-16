@@ -26,15 +26,11 @@ include:
     'rules/kb.smk'
 include:
     'rules/starsolo.smk'
-include:
-    'rules/umitools.smk'
 
 rule all:
     input:
         expand("results/cogent_analyze/{sample}/{sample}_umi_uss_genematrix.csv", sample=pd.unique(samples['sample'])) if config['run_cogent_ap'] else [],
-        #expand("results/htseq_count/{sample}.{strandedness}.out", sample=pd.unique(samples['sample']), strandedness=['yes','no','reverse']),
         "results/multiqc/multiqc_report.html",
-        #expand("results/salmon/{sample}/logs/salmon_quant.log", sample=pd.unique(samples['sample'])),
         expand("results/STARsolo/{sample}.Solo.out/Gene/raw/matrix.mtx.gz", sample=pd.unique(samples['sample'])),
         expand("results/kb_count/{sample}/{fn}", sample=pd.unique(samples['sample']), fn=['flens.txt', 'index.saved', 'matrix.ec', 'output.bus', 'run_info.json', 'transcripts.txt']),
         expand("results/kb_count_all/{fn}", fn=['index.saved', 'matrix.ec', 'output.bus', 'run_info.json', 'transcripts.txt']),

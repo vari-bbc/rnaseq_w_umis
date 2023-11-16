@@ -5,30 +5,21 @@ ref:
   index:          /varidata/research/projects/bbc/versioned_references/2023-10-06_11.13.48_v14/data/mm10_gencode_plus_ERCC92/indexes/star
   annotation:     /varidata/research/projects/bbc/versioned_references/2023-10-06_11.13.48_v14/data/mm10_gencode_plus_ERCC92/annotation/mm10_gencode_plus_ERCC92.gtf
 
-# For salmon transcript pseudo-alignment
-salmon:
-  index_id:       mm10_gencode_plus_ERCC92
-  transcripts:    /varidata/research/projects/bbc/versioned_references/2023-10-06_11.13.48_v14/data/mm10_gencode/annotation/mm10_gencode.transcripts.fasta
-  decoys:         /varidata/research/projects/bbc/versioned_references/2023-10-06_11.13.48_v14/data/mm10_gencode/sequence/mm10_gencode.fa
-  spikeins:       /varidata/research/projects/bbc/versioned_references/2023-10-06_11.13.48_v14/bin/spikeins/sequence/ERCC92.fa # can omit if no spikeins used
-
 # STARsolo
 starsolo_tech: "STORM"
 
-# additional parameters for trimGalore after removal of UMIs
-# For SMARTer Stranded Total RNA-Seq Kit v3, the 5' end of R2 hads 8 bp UMI and then 6 bp linker/adapter
-# To disable, set to an empty string, "".
-clip_r2: "--clip_R2 6" 
-
-
+# kb count followed by kallisto quant-tcc
+run kallisto: False
+  
 # Can choose to run cogentAP if data comes from a Takara kit
 run_cogent_ap: True
 cogent_ap_ref: "mm10ERCC92gene"
 cogent_ap_tech: "Stranded_UMI" # "Stranded_UMI" is for SMARTer Stranded Total RNA-Seq Kit v3; have not tested on other Takara kits 
 
-
 # OrgDB R package for covnerting gene names. Common choices are 'org.Mm.eg.db' for mouse and 'org.Hs.eg.db' for human.
 orgdb: org.Mm.eg.db
+  
+  
 
 modules:
   bedtools: bbc2/bedtools/bedtools-2.30.0
