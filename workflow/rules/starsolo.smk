@@ -81,7 +81,7 @@ rule STARsolo:
                  "Log.final.out",
                  "Log.out",
                  "SJ.out.tab"),
-        raw = expand("results/STARsolo/{{sample}}.Solo.out/Gene/raw/{file}", file=['matrix.mtx.gz','barcodes.tsv.gz','features.tsv.gz']),
+        raw = expand("results/STARsolo/{{sample}}.Solo.out/{gene}/raw/{file}", gene=['Gene','GeneFull'], file=['matrix.mtx.gz','barcodes.tsv.gz','features.tsv.gz']),
     params:
         index = config["ref"]["index"],
         outprefix = "results/STARsolo/{sample}.",
@@ -116,6 +116,7 @@ rule STARsolo:
        samtools index {params.outprefix}Aligned.sortedByCoord.out.bam
 
        pigz -p {threads} {params.outprefix}Solo.out/Gene/raw/*
+       pigz -p {threads} {params.outprefix}Solo.out/GeneFull/raw/*
        """
 
 
