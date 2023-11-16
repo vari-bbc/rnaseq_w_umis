@@ -9,6 +9,16 @@ top_modules:
         target: ''
         path_filters:
             - '*/trim_galore/*_fastqc.zip'
+    - star:
+        name: 'STAR (raw)'
+        path_filters:
+            - '*/star/raw/*'
+    - star:
+        name: 'STAR (deduped)'
+        info: 'This section of the report shows STAR results after deduping.'
+        target: ''
+        path_filters:
+            - '*/star/deduped/*'
 extra_fn_clean_trim:
      - "_val_1"
      - "_val_2"

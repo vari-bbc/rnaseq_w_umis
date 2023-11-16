@@ -4,7 +4,7 @@
 #SBATCH -o rnaseq_workflow.o
 #SBATCH -e rnaseq_workflow.e
 #SBATCH --ntasks 1
-#SBATCH --time 24:00:00
+#SBATCH --time 400:00:00
 #SBATCH --mem=8G
 #SBATCH --partition=long
 
@@ -30,6 +30,7 @@ snakemake \
 --cluster "mkdir -p logs/{rule}; sbatch \
 -p ${SLURM_JOB_PARTITION} \
 --export=ALL \
+--nodes 1 \
 --ntasks {threads} \
 --mem={resources.mem_gb}G \
 -t 48:00:00 \

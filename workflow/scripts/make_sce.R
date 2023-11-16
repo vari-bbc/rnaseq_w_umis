@@ -5,11 +5,12 @@ gtf_file <- args[1]
 orgdb <- args[2]
 out_se <- args[3]
 out_sce <- args[4]
-out_sizeFactors <- args[5]
+#out_sizeFactors <- args[5]
 
-star_dir <- "results/star"
+star_dir <- "results/star/deduped"
 salmon_dir <- "results/salmon"
-samplesheet <- "config/samplesheet/units.tsv"
+cogent_dir <- "results/cogent_analyze"
+samplesheet <- "bin/units.tsv"
 
 # Packages loaded
 
@@ -81,6 +82,17 @@ tpms <- txi.salmon$abundance
 tpms <- tpms[match(rownames(raw_cts), rownames(tpms)), ]
 rownames(tpms) <- rownames(raw_cts)
 
+# Read CogentAP
+files <- list.files(cogent_dir, pattern = "_umi_uss_genematrix.csv", recursive=TRUE, full.names = TRUE)
+names(files) <- basename(str_remove(files, "_umi_uss_genematrix.csv"))
+
+cogent_list <- lapply(setNames(nm=names(files)), function(x){
+                    read_csv(files[[x]], col_names=c("gene_id", x), skip=1)
+                })
+cogent <- Reduce(function(a, b) full_join(a, b, by="gene_id"), cogent_list)
+cogent <- cogent %>% tibble::column_to_rownames("gene_id") %>% as.matrix()
+rownames(cogent) <- str_extract(rownames(cogent), "^[^_]+")
+cogent <- cogent[match(rownames(raw_cts), rownames(cogent)), ]
 
 # Row annot
 
@@ -124,29 +136,29 @@ stopifnot(all(!is.na(data_for_DE$group)))
 
 stopifnot(identical(rownames(data_for_DE), colnames(raw_cts)))
 stopifnot(identical(rownames(gene_names_df), rownames(raw_cts)))
-count_data <- list(counts=raw_cts, tpms=tpms[rownames(raw_cts), ])
+count_data <- list(counts=raw_cts, tpms=tpms[rownames(raw_cts), colnames(raw_cts)], cogent=cogent[rownames(raw_cts), colnames(raw_cts)])
 
 se <- SummarizedExperiment(assays = count_data, colData = data_for_DE, rowData = gene_names_df)
 se <- se[, order(se$group)] # order samples by group
 
 # Add vst
-dds <- DESeqDataSet(se, design = ~ group)
-dds <- DESeq(dds)
-vsd <- vst(dds, blind=FALSE)
+#dds <- DESeqDataSet(se, design = ~ group)
+#dds <- DESeq(dds)
+#vsd <- vst(dds, blind=FALSE)
 
-assays(se)$vst <- assay(vsd)
+#assays(se)$vst <- assay(vsd)
 
 write_rds(se, out_se)
 
 # PCA
 sce <- as(se, "SingleCellExperiment")
-sce <- runPCA(sce, ntop=5000, ncomponents = 4, exprs_values="vst")
+#sce <- runPCA(sce, ntop=5000, ncomponents = 4, exprs_values="vst")
 
 rownames(sce) <- rowData(sce)$Uniq_syms
 write_rds(sce, out_sce)
 
 
 # Output size factors for use with other tools
-sizefactors <- 1/dds$sizeFactor
-tibble::tibble(sample=names(sizefactors), sizefactor=sizefactors) %>%
-  write_tsv(., out_sizeFactors) # "SizeFactors will now contain a factor for every sample which can be used to divide the 4th colun of a bedGraph/bigwig by. Both the aforementioned tools (bamCoverage and genomecov) have options though to directly scale the output by a factor (--scaleFactor or --scale respectively). !! Note though that these options will multiply rather than divide the 4th column with the factor, therefore you would need to provide the reciprocal as mentioned in the code chunk above." https://www.biostars.org/p/413626/#414440
+#sizefactors <- 1/dds$sizeFactor
+#tibble::tibble(sample=names(sizefactors), sizefactor=sizefactors) %>%
+#  write_tsv(., out_sizeFactors) # "SizeFactors will now contain a factor for every sample which can be used to divide the 4th colun of a bedGraph/bigwig by. Both the aforementioned tools (bamCoverage and genomecov) have options though to directly scale the output by a factor (--scaleFactor or --scale respectively). !! Note though that these options will multiply rather than divide the 4th column with the factor, therefore you would need to provide the reciprocal as mentioned in the code chunk above." https://www.biostars.org/p/413626/#414440
