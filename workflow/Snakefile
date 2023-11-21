@@ -35,7 +35,7 @@ rule all:
         expand("results/kb_count/{sample}/{fn}", sample=pd.unique(samples['sample']), fn=['flens.txt', 'index.saved', 'matrix.ec', 'output.bus', 'run_info.json', 'transcripts.txt']) if config['run kallisto'] else [],
         expand("results/kb_count_all/{fn}", fn=['index.saved', 'matrix.ec', 'output.bus', 'run_info.json', 'transcripts.txt']) if config['run kallisto'] else [],
         expand("results/kallisto_quant_tcc_all/{type}/transcripts.txt", type=['total']) if config['run kallisto'] else [],
-        #expand("results/kallisto_quant_tcc/{sample}/{type}/transcripts.txt", type=['total'],  sample=pd.unique(samples['sample'])),
+        expand("results/kallisto_quant_tcc/{sample}/{type}/transcripts.txt", type=['total'],  sample=pd.unique(samples['sample'])),
         #"results/SummarizedExperiment/sce.rds"
 
 rule multiqc:
