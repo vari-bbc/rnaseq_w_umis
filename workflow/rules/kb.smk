@@ -46,7 +46,7 @@ rule kb_count:
         c2="results/kb_ref/intron_t2c.txt"
     output:
         expand("results/kb_count/{{sample}}/{fn}", fn=['flens.txt', 'index.saved', 'inspect.json', 'kb_info.json', 'matrix.ec', 'output.bus', 'run_info.json', 'transcripts.txt']),
-        expand("results/kb_count/{{sample}}/counts_unfiltered/{fn}", fn=['cells_x_tcc.ambiguous.mtx', 'cells_x_tcc.barcodes.txt', 'cells_x_tcc.ec.txt', 'cells_x_tcc.mature.mtx', 'cells_x_tcc.nascent.mtx']),
+        expand("results/kb_count/{{sample}}/counts_unfiltered/{fn}", fn=['cells_x_tcc.ambiguous.mtx', 'cells_x_tcc.barcodes.txt', 'cells_x_tcc.ec.txt', 'cells_x_tcc.mature.mtx', 'cells_x_tcc.nascent.mtx', 'cells_x_tcc.total.mtx', 'cells_x_tcc.nucleus.mtx', 'cells_x_tcc.cell.mtx']),
     benchmark:
         "benchmarks/kb_count/{sample}.txt"
     params:
