@@ -1,16 +1,15 @@
 args <- commandArgs(trailingOnly = TRUE)
 
 
-gtf_file <- args[1]
-orgdb <- args[2]
-out_se <- args[3]
-out_sce <- args[4]
-#out_sizeFactors <- args[5]
+orgdb <- args[1]
+out_se <- args[2]
+out_sce <- args[3]
+#out_sizeFactors <- args[4]
 
-star_dir <- "results/star/deduped"
-salmon_dir <- "results/salmon"
+starsolo_dir <- "results/STARsolo"
 cogent_dir <- "results/cogent_analyze"
-samplesheet <- "bin/units.tsv"
+samplesheet <- "config/units.tsv"
+kallisto_dir <- "results/kallisto_quant_tcc/"
 
 # Packages loaded
 
@@ -18,7 +17,6 @@ library(dplyr)
 library(stringr)
 library(readr)
 library(tibble)
-library(edgeR)
 # load the org.db for your organism
 if(!require(orgdb, character.only=TRUE)){
     BiocManager::install(orgdb)
@@ -29,75 +27,49 @@ library(AnnotationDbi)
 library(tximport)
 library(GenomicFeatures)
 library(scater)
-library(rjson)
+library(DropletUtils)
 
-# Infer the strand from Salmon results
-# ISR or SR = reverse
-# ISF or SF = forward
-# IU or U = unstranded
-salmon_lib_files <- list.files(salmon_dir, pattern = "lib_format_counts.json", recursive=TRUE, full.names = TRUE)
-lib_types <- unlist(lapply(salmon_lib_files, function(x) fromJSON(file=x)$expected_format))
-lib_type <- unique(lib_types)
-
-if(length(lib_type) > 1){
- stop("More than 1 library type detected.")
-}
-
-if(!lib_type %in% c("ISR", "SR", "ISF", "SF", "IU", "U")){
- stop("Unknown library type detected.")
-}
-
-# Read counts
-files <- list.files(star_dir, pattern = "ReadsPerGene.out.tab", full.names = FALSE)
-names(files) <- str_remove_all(files, ".ReadsPerGene.out.tab$")
-
-counts_col <- case_when(
-    lib_type %in% c("ISR", "SR") ~ 4,
-    lib_type %in% c("ISF", "SF") ~ 3,
-    lib_type %in% c("IU", "U") ~ 2,
-    .default=999
-)
-stopifnot(counts_col %in% c(2, 3, 4))
-
-dge <- edgeR::readDGE(files, path = star_dir, columns = c(1, counts_col), 
-                      skip=4, labels = names(files), header=FALSE)
-
-
-raw_cts <- edgeR::getCounts(dge)
-names(attributes(raw_cts)$dimnames) <- NULL
+# Read STARsolo counts
+files <- file.path(list.dirs(starsolo_dir, recursive=FALSE), "GeneFull/raw/")
+names(files) <- str_remove_all(files, "\\S+STARsolo\\/|\\.Solo\\.out\\/GeneFull\\S+")
+starsolo <- read10xCounts(files, names(files))
+colnames(starsolo) <- starsolo$Sample
 
 # Read TPMs
 
-txdb <- makeTxDbFromGFF(gtf_file)
-k <- keys(txdb, keytype = "TXNAME")
-tx2gene <- AnnotationDbi::select(txdb, k, "GENEID", "TXNAME")
+files <- file.path(list.dirs(kallisto_dir, recursive=FALSE), "total", "abundance.gene_1.tsv")
+names(files) <- basename(str_remove(files, "\\/[^\\/]+\\/abundance.gene_1.tsv"))
 
-files <- list.files(salmon_dir, recursive=TRUE, pattern = "quant.sf", full.names = TRUE)
-names(files) <- basename(str_remove(files, "\\/quant.sf"))
+kallisto_abund <- lapply(files, function(x){
+    read_tsv(x, col_types="ccdd", col_names=TRUE)
+})
+kallisto_tpms <- Reduce(function(a,b) full_join(a, b, by="gene_id"), lapply(setNames(nm=names(kallisto_abund)), function(x){
+    kallisto_abund[[x]] %>%
+        dplyr::select(gene_id, tpm) %>%
+        dplyr::rename({{x}} := "tpm")
+})) %>% tibble::column_to_rownames("gene_id") %>% as.matrix()
 
-txi.salmon <- tximport(files, type = "salmon", tx2gene = tx2gene)
-tpms <- txi.salmon$abundance
-
-# some genes are only in the STAR counts
-tpms <- tpms[match(rownames(raw_cts), rownames(tpms)), ]
-rownames(tpms) <- rownames(raw_cts)
+kallisto_cts <- Reduce(function(a,b) full_join(a, b, by="gene_id"), lapply(setNames(nm=names(kallisto_abund)), function(x){
+    kallisto_abund[[x]] %>%
+        dplyr::select(gene_id, est_counts) %>%
+        dplyr::rename({{x}} := "est_counts")
+})) %>% tibble::column_to_rownames("gene_id") %>% as.matrix()
 
 # Read CogentAP
-files <- list.files(cogent_dir, pattern = "_umi_uss_genematrix.csv", recursive=TRUE, full.names = TRUE)
+files <- unlist(lapply(list.dirs(cogent_dir, recursive=FALSE), list.files, full.names=TRUE, pattern="_umi_uss_genematrix.csv"))
 names(files) <- basename(str_remove(files, "_umi_uss_genematrix.csv"))
 
 cogent_list <- lapply(setNames(nm=names(files)), function(x){
-                    read_csv(files[[x]], col_names=c("gene_id", x), skip=1)
+                    read_csv(files[[x]], col_names=c("gene_id", x), skip=1, col_types="cd")
                 })
 cogent <- Reduce(function(a, b) full_join(a, b, by="gene_id"), cogent_list)
 cogent <- cogent %>% tibble::column_to_rownames("gene_id") %>% as.matrix()
 rownames(cogent) <- str_extract(rownames(cogent), "^[^_]+")
-cogent <- cogent[match(rownames(raw_cts), rownames(cogent)), ]
 
 # Row annot
 
 # add gene symbols
-gene_names_df <- data.frame(row.names = rownames(raw_cts))
+gene_names_df <- data.frame(row.names = rownames(starsolo))
 
 ens_no_version <- str_remove(rownames(gene_names_df), "\\.\\d+$")
 stopifnot(length(ens_no_version) == length(unique(ens_no_version)))
@@ -128,34 +100,49 @@ stopifnot(c("sample", "group") %in% colnames(data_for_DE))
 rownames(data_for_DE) <- data_for_DE$sample
 
 # make sure order of samples in the meta data matches the counts
-data_for_DE <- data_for_DE[colnames(raw_cts), ]
+data_for_DE <- data_for_DE[colnames(starsolo), ]
 
 stopifnot(all(!is.na(data_for_DE$group)))
 
-# Make DDS
+# Make SingleCellExperiment
 
-stopifnot(identical(rownames(data_for_DE), colnames(raw_cts)))
-stopifnot(identical(rownames(gene_names_df), rownames(raw_cts)))
-count_data <- list(counts=raw_cts, tpms=tpms[rownames(raw_cts), colnames(raw_cts)], cogent=cogent[rownames(raw_cts), colnames(raw_cts)])
+stopifnot(identical(sort(rownames(starsolo)), sort(rownames(cogent))))
+stopifnot(identical(sort(rownames(starsolo)), sort(rownames(kallisto_tpms))))
+stopifnot(identical(sort(rownames(starsolo)), sort(rownames(kallisto_cts))))
 
-se <- SummarizedExperiment(assays = count_data, colData = data_for_DE, rowData = gene_names_df)
-se <- se[, order(se$group)] # order samples by group
+stopifnot(identical(sort(colnames(starsolo)), sort(colnames(cogent))))
+stopifnot(identical(sort(colnames(starsolo)), sort(colnames(kallisto_tpms))))
+stopifnot(identical(sort(colnames(starsolo)), sort(colnames(kallisto_cts))))
+
+sce <- starsolo
+
+assay(sce, "cogent") <- cogent[rownames(sce), colnames(sce)]
+assay(sce, "tpms") <- kallisto_tpms[rownames(sce), colnames(sce)]
+assay(sce, "kallisto_cts") <- kallisto_cts[rownames(sce), colnames(sce)]
+
+rowData(sce) <- cbind(rowData(sce), gene_names_df[rownames(sce), ])
+colData(sce) <- cbind(colData(sce), data_for_DE[colnames(sce), ])
+
+sce <- sce[, order(sce$group)] # order samples by group
+
+
+# Extract ERCC counts
+
+sce2 <- splitAltExps(sce, ifelse(str_detect(rownames(sce), "^ERCC\\-\\d+$"), "ERCC", "gene"), ref = 'gene')
+
+write_rds(sce2, out_sce)
+
+se <- SummarizedExperiment(assays=list(counts=as.matrix(assay(sce2, "counts"))), colData=colData(sce2), rowData=rowData(sce2))
 
 # Add vst
-#dds <- DESeqDataSet(se, design = ~ group)
-#dds <- DESeq(dds)
-#vsd <- vst(dds, blind=FALSE)
+dds <- DESeqDataSet(se, design = ~ group)
+dds <- DESeq(dds)
+vsd <- vst(dds, blind=FALSE)
 
-#assays(se)$vst <- assay(vsd)
+assays(se)$vst <- assay(vsd)
 
 write_rds(se, out_se)
 
-# PCA
-sce <- as(se, "SingleCellExperiment")
-#sce <- runPCA(sce, ntop=5000, ncomponents = 4, exprs_values="vst")
-
-rownames(sce) <- rowData(sce)$Uniq_syms
-write_rds(sce, out_sce)
 
 
 # Output size factors for use with other tools

@@ -32,11 +32,9 @@ rule all:
         expand("results/cogent_analyze/{sample}/{sample}_umi_uss_genematrix.csv", sample=pd.unique(samples['sample'])) if config['run_cogent_ap'] else [],
         "results/multiqc/multiqc_report.html",
         expand("results/STARsolo/{sample}.Solo.out/Gene/raw/matrix.mtx.gz", sample=pd.unique(samples['sample'])),
-        expand("results/kb_count/{sample}/{fn}", sample=pd.unique(samples['sample']), fn=['flens.txt', 'index.saved', 'matrix.ec', 'output.bus', 'run_info.json', 'transcripts.txt']) if config['run kallisto'] else [],
-        expand("results/kb_count_all/{fn}", fn=['index.saved', 'matrix.ec', 'output.bus', 'run_info.json', 'transcripts.txt']) if config['run kallisto'] else [],
-        expand("results/kallisto_quant_tcc_all/{type}/transcripts.txt", type=['total']) if config['run kallisto'] else [],
-        expand("results/kallisto_quant_tcc/{sample}/{type}/transcripts.txt", type=['total'],  sample=pd.unique(samples['sample'])),
-        #"results/SummarizedExperiment/sce.rds"
+        #expand("results/kb_count/{sample}/{fn}", sample=pd.unique(samples['sample']), fn=['flens.txt', 'index.saved', 'matrix.ec', 'output.bus', 'run_info.json', 'transcripts.txt']) if config['run_kallisto'] else [],
+        expand("results/kallisto_quant_tcc/{sample}/{type}/transcripts.txt", type=['total'],  sample=pd.unique(samples['sample'])) if config['run_kallisto'] else [],
+        "results/SummarizedExperiment/sce.rds"
 
 rule multiqc:
     input:
@@ -154,11 +152,25 @@ rule fastq_screen:
         fastq_screen --threads {threads} --outdir results/fastq_screen/ {input}
         """
 
+def get_assays_for_SummarizedExperiment (wildcards):
+    assays = {}
+
+    assays['starsolo'] = expand("results/STARsolo/{sample}.Solo.out/Gene/raw/matrix.mtx.gz", sample=pd.unique(samples['sample']))
+    
+    if (config['run_kallisto']):
+        assays['kallisto'] = expand("results/kallisto_quant_tcc/{sample}/total/abundance.gene_1.tsv", sample=pd.unique(samples['sample']))
+
+    if (config['run_cogent_ap']):
+        assays['cogent'] = expand("results/cogent_analyze/{sample}/{sample}_umi_uss_genematrix.csv", sample=pd.unique(samples['sample']))
+
+    return assays
+
 rule SummarizedExperiment:
     input:
-        star = expand("results/star/deduped/{samples.sample}.ReadsPerGene.out.tab", samples=samples.itertuples()),
-        salmon = expand("results/salmon/{samples.sample}/{file}", samples=samples.itertuples(), file=['lib_format_counts.json', 'quant.sf']),
-        cogent = expand("results/cogent_analyze/{samples.sample}/{samples.sample}_umi_uss_genematrix.csv", samples=samples.itertuples())
+        unpack(get_assays_for_SummarizedExperiment)
+        #starsolo = expand("results/STARsolo/{sample}.Solo.out/Gene/raw/matrix.mtx.gz", sample=pd.unique(samples['sample'])),
+        #cogent = expand("results/cogent_analyze/{samples.sample}/{samples.sample}_umi_uss_genematrix.csv", samples=samples.itertuples()),
+        #kallisto = expand("results/kallisto_quant_tcc/{sample}/total/abundance.gene_1.tsv", sample=pd.unique(samples['sample']))
     output:
         se="results/SummarizedExperiment/SummarizedExperiment.rds",
         sce="results/SummarizedExperiment/sce.rds",
@@ -166,7 +178,6 @@ rule SummarizedExperiment:
     benchmark:
         "benchmarks/SummarizedExperiment/SummarizedExperiment.txt"
     params:
-        gtf=config['ref']['annotation'],
         orgdb=config['orgdb']
     threads: 1
     envmodules:
@@ -176,5 +187,5 @@ rule SummarizedExperiment:
         log_prefix=lambda wildcards: "_".join(wildcards) if len(wildcards) > 0 else "log"
     shell:
         """
-        Rscript --vanilla workflow/scripts/make_sce.R {params.gtf} {params.orgdb} {output.se} {output.sce} 
+        Rscript --vanilla workflow/scripts/make_sce.R {params.orgdb} {output.se} {output.sce} 
         """

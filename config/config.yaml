@@ -9,10 +9,10 @@ ref:
 starsolo_tech: "STORM"
 
 # kb count followed by kallisto quant-tcc
-run kallisto: False
+run_kallisto: True # SummarizedExperiment rule needs to be modified for this to work properly. Set to True for now.
   
 # Can choose to run cogentAP if data comes from a Takara kit
-run_cogent_ap: True
+run_cogent_ap: True # SummarizedExperiment rule needs to be modified for this to work properly. Set to True for now.
 cogent_ap_ref: "mm10ERCC92gene"
 cogent_ap_tech: "Stranded_UMI" # "Stranded_UMI" is for SMARTer Stranded Total RNA-Seq Kit v3; have not tested on other Takara kits 
 
