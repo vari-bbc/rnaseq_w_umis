@@ -24,7 +24,7 @@ rule cogent_demux:
         fqs=expand("results/renamed_fastqs/{{sample}}_R{read}.fastq.gz", read=['1','2']),
         barcode="results/make_barcodes_file/{sample}.barcode"
     output:
-        directory("results/cogent_demux/{sample}/")
+        temp(directory("results/cogent_demux/{sample}/"))
     benchmark:
         "benchmarks/cogent_demux/{sample}.txt"
     params:
@@ -56,7 +56,7 @@ rule cogent_analyze:
     output:
         expand("results/cogent_analyze/{{sample}}/{{sample}}{file_suff}", file_suff=["_umi_uss_genematrix.csv","_analyzer.log","_stats.csv"]),
         "results/cogent_analyze/{sample}/gene_info.csv",
-        directory("results/cogent_analyze/{sample}/bam"),
+        temp(directory("results/cogent_analyze/{sample}/bam")),
         directory("results/cogent_analyze/{sample}/extras"),
         directory("results/cogent_analyze/{sample}/work"),
     benchmark:

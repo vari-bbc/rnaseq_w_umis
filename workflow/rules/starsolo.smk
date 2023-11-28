@@ -7,7 +7,7 @@ rule add_fake_BC:
     input:
         fqs=expand("results/renamed_fastqs/{{sample}}_R{read}.fastq.gz", read=['1','2']),
     output:
-        fqs=expand("results/add_fake_BC/{{sample}}_R{read}.fastq.gz", read=['1','2']),
+        fqs=temp(expand("results/add_fake_BC/{{sample}}_R{read}.fastq.gz", read=['1','2'])),
     benchmark:
         "benchmarks/add_fake_BC/{sample}.txt"
     params:
