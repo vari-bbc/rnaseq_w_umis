@@ -26,6 +26,8 @@ include:
     'rules/kb.smk'
 include:
     'rules/starsolo.smk'
+include:
+    'rules/erna.smk'
 
 rule all:
     input:
@@ -34,7 +36,10 @@ rule all:
         expand("results/STARsolo/{sample}.Solo.out/Gene/raw/matrix.mtx.gz", sample=pd.unique(samples['sample'])),
         #expand("results/kb_count/{sample}/{fn}", sample=pd.unique(samples['sample']), fn=['flens.txt', 'index.saved', 'matrix.ec', 'output.bus', 'run_info.json', 'transcripts.txt']) if config['run_kallisto'] else [],
         expand("results/kallisto_quant_tcc/{sample}/{type}/transcripts.txt", type=['total'],  sample=pd.unique(samples['sample'])) if config['run_kallisto'] else [],
-        "results/SummarizedExperiment/sce.rds"
+        "results/SummarizedExperiment/sce.rds",
+        expand("results/STARsolo_eRNAs/{sample}.Solo.out/Gene/raw/matrix.mtx.gz", sample=pd.unique(samples['sample'])) if config['quant_erna'] else [],
+        #"results/eRNAs_star_idx/Log.out",
+        #"results/make_erna_gtf/genes_and_enhancers.gtf" if config['quant_erna'] else [],
 
 rule multiqc:
     input:
