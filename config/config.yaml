@@ -17,7 +17,7 @@ cogent_ap_ref: "mm10ERCC92gene"
 cogent_ap_tech: "Stranded_UMI" # "Stranded_UMI" is for SMARTer Stranded Total RNA-Seq Kit v3; have not tested on other Takara kits 
 
 # eRNA
-quant_erna: True
+quant_erna: False
 fantom5_enhancers: fantom5/F5.mm10.enhancers.bed.gz 
 
 # OrgDB R package for covnerting gene names. Common choices are 'org.Mm.eg.db' for mouse and 'org.Hs.eg.db' for human.
